@@ -307,9 +307,7 @@ class SecShare():
 	# en temp1 estan shares, resultado en temp 3
 	def invert(self, servers):
 		servers = self.gen(servers)
-		
-		for p in servers:
-			servers = self.mult(servers)
+		servers = self.mult(servers)
 
 		w_shares = {}
 		for p in servers:
