@@ -1,4 +1,3 @@
-import threading
 import charm.toolbox.symcrypto
 import concurrent.futures
 from util import pedersen_commit, zklogeq, zklogeq_verify, mr_prove, mr_verify
@@ -22,7 +21,6 @@ class SecShare():
 		self.coeffs = self.ss.recoverCoefficients(shares)
 		self.broadcast = {}
 		self.h = None
-		self._lock = threading.Lock()
 
 
 	def gen_pedersen(self, s, r, feldman=False):
@@ -86,18 +84,15 @@ class SecShare():
 
 	# b ^ shares temp 1 de servers
 	def exp(self, servers, b):
-		def temp_func1(p):
+		for p in servers:
 			bs = b ** p.temp1
 			gs = self.g ** p.temp1
 			proof = zklogeq(self.group, self.g, b, p.temp1)
 			var_name = 'exp_vals_' + str(p.id)
-			with self._lock:
-				self.broadcast[var_name] = (bs, gs, proof)
+			self.broadcast[var_name] = (bs, gs, proof)
 
-		with concurrent.futures.ThreadPoolExecutor(max_workers=self.n) as executor:
-			executor.map(temp_func1, servers)
 
-		def temp_func2(p):
+		for p in servers:
 			for s in servers:
 				if p.id != s.id:
 					var_name = 'exp_vals_' + str(s.id)
@@ -106,9 +101,6 @@ class SecShare():
 					ver = zklogeq_verify(self.g, b, gs, bs, a, c, t)
 					if not ver:
 						raise Exception('Failed to verify log equality from ' + str(p.id) + ' to ' + str(s.id))
-
-		with concurrent.futures.ThreadPoolExecutor(max_workers=self.n) as executor:
-			executor.map(temp_func2, servers)
 
 		res = 1
 		for p in servers:
@@ -143,18 +135,14 @@ class SecShare():
 
 	# temp1 * temp2 = temp3 # beaver
 	def mult(self, servers):
-		def temp_func1(p):
+		for p in servers:
 			a, b, c = p.beaver
 			x = p.temp1
 			y = p.temp2
 			d = x - a
 			e = y - b
 			var_name = 'mult_' + str(p.id)
-			with self._lock:
-				self.broadcast[var_name] = (d, e)
-
-		with concurrent.futures.ThreadPoolExecutor(max_workers=self.n) as executor:
-			executor.map(temp_func1, servers)
+			self.broadcast[var_name] = (d, e)
 
 		d_shares = {}
 		e_shares = {}
@@ -169,16 +157,13 @@ class SecShare():
 		d_rec = self.reconstruct(d_shares)
 		e_rec = self.reconstruct(e_shares)
 
-		def temp_func2(p):
+		for p in servers:
 			pid = p.id
 			a, b, c = p.beaver
 			x = p.temp1
 			y = p.temp2
 			z = c + x * e_rec + y * d_rec - e_rec * d_rec
 			p.temp3 = z
-
-		with concurrent.futures.ThreadPoolExecutor(max_workers=self.n) as executor:
-			executor.map(temp_func2, servers)
 
 		return servers
 
@@ -203,8 +188,7 @@ class SecShare():
 			# pi2 = zklogeq(self.group, self.g, self.h, r)
 
 			var_name = 'expRR_' + str(p.id)
-			with self._lock:
-				self.broadcast[var_name] = (ep0, ep1) #pi1, pi2
+			self.broadcast[var_name] = (ep0, ep1) #pi1, pi2
 
 		# verify proofs
 		# for p in servers:
@@ -238,8 +222,7 @@ class SecShare():
 				s.da_shares[pid-1] = w[sid]
 
 			var_name = 'gen_pedersen_' + str(pid)
-			with self._lock:
-				self.broadcast[var_name] = v
+			self.broadcast[var_name] = v
 
 		for p in servers:
 			pid = p.id
@@ -282,9 +265,8 @@ class SecShare():
 
 			var_name1 = 'gen_feldman_' + str(pid)
 			var_name2 = 'gen_pedersen_' + str(pid)
-			with self._lock:
-				self.broadcast[var_name1] = vf
-				self.broadcast[var_name2] = v
+			self.broadcast[var_name1] = vf
+			self.broadcast[var_name2] = v
 
 		for p in servers:
 			pid = p.id
@@ -352,8 +334,7 @@ class SecShare():
 			w, v, vf = self.gen_pedersen(z, r, feldman=True)
 
 			var_name = 'gen_zero_feldman_' + str(pid)
-			with self._lock:
-				self.broadcast[var_name] = vf
+			self.broadcast[var_name] = vf
 
 			for s in servers:
 				sid = s.id
@@ -487,8 +468,7 @@ class SecShare():
 			a2 = c2 ** r
 			pi = mr_prove(self.group, c1, c2, a1, a2, r)
 			var_name = 'msgrand_'+ str(p.id)
-			with self._lock:
-				self.broadcast[var_name] = (pi, a1, a2)
+			self.broadcast[var_name] = (pi, a1, a2)
 
 		for p in servers:
 			for s in servers:
