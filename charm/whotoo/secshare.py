@@ -187,7 +187,7 @@ class SecShare():
 	def expRR(self, servers, e):
 		e0, e1 = e
 
-		for p in servers:
+		def temp_func(p):
 			r = self.group.random(ZR)
 			gr = self.g ** r
 			hr = self.h ** r
@@ -205,6 +205,9 @@ class SecShare():
 			var_name = 'expRR_' + str(p.id)
 			with self._lock:
 				self.broadcast[var_name] = (ep0, ep1) #pi1, pi2
+
+		with concurrent.futures.ThreadPoolExecutor(max_workers=self.n) as executor:
+			executor.map(temp_func, servers)
 
 		# verify proofs
 		# for p in servers:
@@ -227,7 +230,7 @@ class SecShare():
 
 	# shares quedan en temp2
 	def gen(self, servers):
-		for p in servers:
+		def temp_func1(p):
 			pid = p.id
 			z = self.group.random(ZR)
 			r = self.group.random(ZR)
@@ -241,7 +244,10 @@ class SecShare():
 			with self._lock:
 				self.broadcast[var_name] = v
 
-		for p in servers:
+		with concurrent.futures.ThreadPoolExecutor(max_workers=self.n) as executor:
+			executor.map(temp_func1, servers)
+
+		def temp_func2(p):
 			pid = p.id
 			p.temp2 = 0
 			# p.temp2 = (0, 0)
@@ -265,12 +271,15 @@ class SecShare():
 				#new_r += ri
 				# p.temp2 = (new_x, new_r)
 
+		with concurrent.futures.ThreadPoolExecutor(max_workers=self.n) as executor:
+			executor.map(temp_func2, servers)
+
 		return servers
 
 
 	# shares quedan en temp2
 	def geng(self, servers):
-		for p in servers:
+		def temp_func1(p):
 			pid = p.id
 			z = self.group.random(ZR)
 			r = self.group.random(ZR)
@@ -286,7 +295,10 @@ class SecShare():
 				self.broadcast[var_name1] = vf
 				self.broadcast[var_name2] = v
 
-		for p in servers:
+		with concurrent.futures.ThreadPoolExecutor(max_workers=self.n) as executor:
+			executor.map(temp_func1, servers)
+
+		def temp_func2(p):
 			pid = p.id
 			#p.temp2 = (0, 0)
 			p.temp2 = 0
@@ -313,6 +325,9 @@ class SecShare():
 				p.temp2 = new_x
 				#new_r += ri
 				# p.temp2 = (new_x, new_r)
+		
+		with concurrent.futures.ThreadPoolExecutor(max_workers=self.n) as executor:
+			executor.map(temp_func2, servers)
 
 		h = 1
 		for p in servers:
@@ -325,9 +340,7 @@ class SecShare():
 	# en temp1 estan shares, resultado en temp 3
 	def invert(self, servers):
 		servers = self.gen(servers)
-		
-		for p in servers:
-			servers = self.mult(servers)
+		servers = self.mult(servers)
 
 		w_shares = {}
 		for p in servers:
