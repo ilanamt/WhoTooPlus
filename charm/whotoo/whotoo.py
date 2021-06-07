@@ -1,6 +1,7 @@
 from charm.core.engine.util import objectToBytes
 from charm.toolbox.pairinggroup import PairingGroup,G1,ZR,G2
 from charm.toolbox.hash_module import *
+from tqdm.contrib.concurrent import thread_map
 from elgamal import ElGamal
 from secshare import SecShare
 from util import Server
@@ -52,24 +53,32 @@ class WhoToo():
 		self.servers, h = self.sec_share.geng(self.servers)
 		self.sec_share.h = h
 		self.pkeg = {'g': self.g1, 'h': h}
-		for p in self.servers:
+		def temp_func1(p):
 			p.skeg_share = p.temp2
 
+		thread_map(temp_func1, self.servers)
+
 		self.servers = self.sec_share.gen(self.servers)
-		for p in self.servers:
+		def temp_func2(p):
 			p.temp1 = p.temp2
 			p.skbbs_share = p.temp2
+
+		thread_map(temp_func2, self.servers)
 		self.pkbbs = self.sec_share.exp(self.servers, self.g2)
 
 
 		self.servers, self.pkdiprf = self.sec_share.geng(self.servers)
-		for p in self.servers:
+		def temp_func3(p):
 			p.skdiprf_share = p.temp2
+
+		thread_map(temp_func3, self.servers)
 
 
 		self.servers, self.pkibe = self.sec_share.geng(self.servers)
-		for p in self.servers:
+		def temp_func4(p):
 			p.skibe_share = p.temp2
+
+		thread_map(temp_func4, self.servers)
 
 		self.bbs = BBS(self.group, self.g1, self.g2, self.pkeg['h'], self.pkbbs, self.sec_share)
 		self.ibe = DistIBE(self.group, self.g1, self.g2, self.pkibe, self.sec_share)
@@ -113,7 +122,7 @@ class WhoToo():
 
 
 	def verify_acc(self):
-		for p in self.servers:
+		def temp_func1(p):
 			pid = p.id
 			(cR, cD, wi, wti, v, vt, e0, e0t, sigma, pi0, pi1, dj, j) = p.last_acc
 			if dj in self.reused_vals: return False
@@ -144,17 +153,26 @@ class WhoToo():
 			p.temp2 = wti[1]
 			p.temp3 = wi[0] + wti[0]
 
+		thread_map(temp_func1, self.servers)
+
+		e0 = self.servers[1].last_acc[6]
+		e0t = self.servers[1].last_acc[7]
+
 		ver = self.sec_share.check_consistent(self.servers, e0)
 		if not ver: return False
 
-		for p in self.servers:
+		def temp_func2(p):
 			p.temp1 = p.temp2
+		
+		thread_map(temp_func2, self.servers)
 
 		ver = self.sec_share.check_consistent(self.servers, e0t)
 		if not ver: return False
 
-		for p in self.servers:
+		def temp_func3(p):
 			p.temp1 = p.temp3
+
+		thread_map(temp_func3, self.servers)
 
 		prf = self.sec_share.diprf(self.servers)
 		if prf in self.unique_accs: return False
@@ -170,15 +188,19 @@ class WhoToo():
 		if not ver:
 			raise Exception('Failed to verify accusation')
 
-		for p in self.servers:
+		def temp_func1(p):
 			p.temp1 = p.last_acc[2][0]
+
+		thread_map(temp_func1, self.servers)
 
 		self.wtset = self.mset.add(self.servers, self.wtset)
 		rhos = self.ibe.enc(self.servers)
 		self.accusations.append((cR, rhos, cD))
 
-		for p in self.servers:
+		def temp_func2(p):
 			p.temp1 = p.last_acc[2][0]
+
+		thread_map(temp_func2, self.servers)
 
 		quorum = self.mset.quorum(self.servers, self.wtset, self.q)
 		if quorum:

@@ -1,4 +1,5 @@
 from charm.toolbox.pairinggroup import ZR
+from tqdm.contrib.concurrent import thread_map
 
 class PrivatePoly():
 
@@ -56,27 +57,37 @@ class PrivatePoly():
 	def zero_test(self, servers, eF):
 		d = len(eF)-1
 		servers = self.sec_share.gen(servers) # r1 en temp2
-		for p in servers:
+		def temp_func1(p):
 			p.temp6 = p.temp1 # s en temp6
 			p.temp1 = p.temp2 # r1 en temp1
 			p.temp7 = [p.temp2]
 
+		thread_map(temp_func1, servers)
+
 		servers = self.sec_share.invert(servers) # t = r^-1 en temp3
-		for p in servers:
+		def temp_func2(p):
 			p.temp7 = [p.temp3] + p.temp7 # temp7 = [t, r1]
 			p.temp1 = p.temp7[1]
 
+		thread_map(temp_func2, servers)
+
 		for i in range(2, d+1):
-			for p in servers:
+			def temp_func3(p):
 				p.temp2 = p.temp7[i-1]
 			
+			thread_map(temp_func3, servers)
+			
 			servers = self.sec_share.mult(servers)
-			for p in servers:
+			def temp_func4(p):
 				p.temp7 += [p.temp3]
 
-		for p in servers:
+			thread_map(temp_func4, servers)
+
+		def temp_func5(p):
 			p.temp1 = p.temp7[0] # t en temp1
 			p.temp2 = p.temp6 # s en temp2
+
+		thread_map(temp_func5, servers)
 
 		servers = self.sec_share.mult(servers) # x = s*t en temp3
 		x_shares = {}
@@ -93,8 +104,10 @@ class PrivatePoly():
 
 
 		for i in range(1, d+1):
-			for p in servers:
+			def temp_func6(p):
 				p.temp1 = (x ** i) * p.temp7[i]
+			
+			thread_map(temp_func6, servers)
 			cyi = self.sec_share.expRR(servers, eF[i])
 			cy = (cy[0] * cyi[0], cy[1] * cyi[1])
 			# mv = self.sec_share.dist_dec(servers, cy)
