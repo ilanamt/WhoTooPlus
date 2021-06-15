@@ -129,3 +129,4 @@ class Server():
 		self.temp6 = None
 		self.temp7 = None
 		self.beaver = None
+		self.gen = []

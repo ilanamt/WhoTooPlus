@@ -23,6 +23,7 @@ class DistIBE():
 
 	# shares of msk in skibe_share
 	def key_gen(self, servers, id):
+		self.sec_share.servers = servers
 		# gamma_shares = {}
 		# for p in servers:
 		# 	dk = self.group.init(ZR, p.id)
@@ -34,17 +35,17 @@ class DistIBE():
 			pid = p.id
 			p.temp1 = p.skibe_share - w[pid][0] # gamma en temp1
 
-		thread_map(temp_func1, servers)
+		thread_map(temp_func1, self.sec_share.servers, leave=False)
 
-		servers = self.sec_share.invert(servers) #gamma^-1 en temp3
+		self.sec_share.invert() #gamma^-1 en temp3
 		def temp_func2(p):
 			p.temp1 = p.temp3 # gamma^-1 en temp1
 
-		thread_map(temp_func2, servers)
+		thread_map(temp_func2, self.sec_share.servers, leave=False)
 
 		rid = self.group.random(ZR)
 		base = (self.h * (self.g2 ** (-1 * rid)))
-		hid = self.sec_share.exp(servers, base)
+		hid = self.sec_share.exp(base)
 
 		# hide= (self.h * (self.g2 ** (-1 * rid))) ** ((msk-id) ** -1)
 		# print(hid == hide)
@@ -54,13 +55,15 @@ class DistIBE():
 	# shares of id en temp1
 	def enc(self, servers):
 
+		self.sec_share.servers = servers
+
 		# gamma_shares = {}
 		# for p in servers:
 		# 	dk = self.group.init(ZR, p.id)
 		# 	gamma_shares[dk] = p.temp1
 		# id = self.sec_share.reconstruct(gamma_shares)
 
-		servers = self.sec_share.gen(servers) # shares de dec en temp2
+		self.sec_share.gen() # shares de dec en temp2
 
 		# gamma_shares = {}
 		# for p in servers:
@@ -73,11 +76,11 @@ class DistIBE():
 			p.temp5 = p.temp2 # dec en temp5
 			p.temp6 = p.temp1 # id en temp6
 
-		thread_map(temp_func1, servers)
+		thread_map(temp_func1, self.sec_share.servers, leave=False)
 
-		com = self.sec_share.multexp(servers, self.gp, self.hp)
+		com = self.sec_share.multexp(self.gp, self.hp)
 
-		servers = self.sec_share.gen(servers) # shares de s en temp2
+		self.sec_share.gen() # shares de s en temp2
 
 		# gamma_shares = {}
 		# for p in servers:
@@ -91,21 +94,21 @@ class DistIBE():
 			p.temp1 = p.temp2 # s en temp1
 			p.temp7 = p.temp2 # s en temp7
 
-		thread_map(temp_func2, servers)
+		thread_map(temp_func2, self.sec_share.servers, leave=False)
 
 
 		epair = self.group.pair_prod(self.g1, self.g2)
-		c2 = self.sec_share.exp(servers, epair)
+		c2 = self.sec_share.exp(epair)
 
 		epair2 = self.group.pair_prod(self.g1, self.h) ** -1
-		c3 = self.sec_share.multexp(servers, self.hp, epair2)
+		c3 = self.sec_share.multexp(self.hp, epair2)
 
 		def temp_func3(p):
 			p.temp1 = p.temp6 # id en temp1
 
-		thread_map(temp_func3, servers)
+		thread_map(temp_func3, self.sec_share.servers, leave=False)
 
-		servers = self.sec_share.gen(servers) # shares de t en temp2
+		self.sec_share.gen() # shares de t en temp2
 
 		# gamma_shares = {}
 		# for p in servers:
@@ -113,37 +116,37 @@ class DistIBE():
 		# 	gamma_shares[dk] = p.temp2
 		# t = self.sec_share.reconstruct(gamma_shares)
 
-		servers = self.sec_share.mult(servers) # id*t en temp3
+		self.sec_share.mult() # id*t en temp3
 
 		def temp_func4(p):
 			p.temp1 = p.temp2 # t en temp1
 			p.temp4 = p.temp2 # t en temp4
 			p.temp5 = p.temp3 # id*t en temp5
 
-		thread_map(temp_func4, servers)
+		thread_map(temp_func4, self.sec_share.servers, leave=False)
 
-		servers = self.sec_share.invert(servers) # t^-1 en temp3
+		self.sec_share.invert() # t^-1 en temp3
 		def temp_func5(p):
 			p.temp6 = p.temp3 # t^-1 en temp6
 
-		thread_map(temp_func5, servers)
+		thread_map(temp_func5, self.sec_share.servers, leave=False)
 
 		g11 = self.g1 ** -1
-		a = self.sec_share.multexp(servers, self.g1p, g11)
+		a = self.sec_share.multexp(self.g1p, g11)
 
 		def temp_func6(p):
 			p.temp1 = p.temp7 # s en temp1
 			p.temp2 = p.temp6 #t^-1 en temp2
 
-		thread_map(temp_func6, servers)
+		thread_map(temp_func6, self.sec_share.servers, leave=False)
 
-		servers = self.sec_share.mult(servers) # s*t^-1 en temp3
+		self.sec_share.mult() # s*t^-1 en temp3
 		def temp_func7(p):
 			p.temp1 = p.temp3 # s*t^-1 en temp1
 
-		thread_map(temp_func7, servers)
+		thread_map(temp_func7, self.sec_share.servers, leave=False)
 
-		c1 = self.sec_share.exp(servers, a)
+		c1 = self.sec_share.exp(a)
 
 		# come = (self.gp ** id) * (self.hp ** dec)
 		# c1e = (self.g1p ** s) * (self.g1 ** (-1 * s * id))

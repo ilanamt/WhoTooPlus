@@ -1,5 +1,5 @@
 from charm.core.engine.util import objectToBytes
-from charm.toolbox.pairinggroup import PairingGroup,G1,ZR,G2
+from charm.toolbox.pairinggroup import G1,ZR,G2
 from charm.toolbox.hash_module import *
 from tqdm.contrib.concurrent import thread_map
 from elgamal import ElGamal
@@ -13,8 +13,8 @@ from util import *
 
 class WhoToo():
 
-	def __init__(self, k, n, q, mac_k, valid_accusers):
-		self.group = PairingGroup('BN254')
+	def __init__(self, group, k, n, q, mac_k, valid_accusers):
+		self.group = group
 		self.hashfunc = Hash(pairingElement=self.group)
 
 		self.valid_accusers = valid_accusers
@@ -35,6 +35,7 @@ class WhoToo():
 		self.sec_share = SecShare(self.group, self.g1, self.g2, self.k, self.n, self.eg)
 		self.sec_share.h = self.group.random(G1) # temporal
 
+		# initialize beaver triples
 		rbv = self.group.random(ZR)
 		a = self.group.random(ZR)
 		b = self.group.random(ZR)
@@ -43,42 +44,48 @@ class WhoToo():
 		wb, v = self.sec_share.gen_pedersen(b, rbv)
 		wc, v = self.sec_share.gen_pedersen(c, rbv)
 
-
+		# initialize servers
 		self.servers = []
 		for i in range(1, n+1):
 			ser = Server(i, n)
 			ser.beaver = (wa[i][0], wb[i][0], wc[i][0])
 			self.servers += [ser]
 
-		self.servers, h = self.sec_share.geng(self.servers)
+		self.sec_share.servers = self.servers
+
+		# initialize ElGamal keys
+		h = self.sec_share.geng()
 		self.sec_share.h = h
 		self.pkeg = {'g': self.g1, 'h': h}
 		def temp_func1(p):
 			p.skeg_share = p.temp2
 
-		thread_map(temp_func1, self.servers)
+		thread_map(temp_func1, self.servers, leave=False)
 
-		self.servers = self.sec_share.gen(self.servers)
+		# initialize BBS keys
+		self.sec_share.gen()
 		def temp_func2(p):
 			p.temp1 = p.temp2
 			p.skbbs_share = p.temp2
 
-		thread_map(temp_func2, self.servers)
-		self.pkbbs = self.sec_share.exp(self.servers, self.g2)
+		thread_map(temp_func2, self.servers, leave=False)
+		self.pkbbs = self.sec_share.exp(self.g2)
 
 
-		self.servers, self.pkdiprf = self.sec_share.geng(self.servers)
+		# initialize DIPRF keys
+		self.pkdiprf = self.sec_share.geng()
 		def temp_func3(p):
 			p.skdiprf_share = p.temp2
 
-		thread_map(temp_func3, self.servers)
+		thread_map(temp_func3, self.servers, leave=False)
 
 
-		self.servers, self.pkibe = self.sec_share.geng(self.servers)
+		# initialize IBE key
+		self.pkibe = self.sec_share.geng()
 		def temp_func4(p):
 			p.skibe_share = p.temp2
 
-		thread_map(temp_func4, self.servers)
+		thread_map(temp_func4, self.servers, leave=False)
 
 		self.bbs = BBS(self.group, self.g1, self.g2, self.pkeg['h'], self.pkbbs, self.sec_share)
 		self.ibe = DistIBE(self.group, self.g1, self.g2, self.pkibe, self.sec_share)
@@ -87,6 +94,7 @@ class WhoToo():
 
 		self.wtset = self.mset.initialize()
 
+		# initialize user keys and macs
 		for u in self.valid_accusers:
 			self.servers, r = self.bbs.key_issue(self.servers, u)
 			self.id_map[r] = u
@@ -97,6 +105,17 @@ class WhoToo():
 			for i in range(self.mac_k):
 				macj = self.dimac.tag(self.servers, tau, u)
 				u.macs += [macj]
+
+
+		# pre-compute random shared values
+		def temp_func(p):
+			p.gen += [p.temp2]
+
+		num_vals = int(len(valid_accusers)/4)
+		for i in range(num_vals):
+			self.sec_share.gen(prev=False)
+			thread_map(temp_func, self.servers, leave=False)
+
 
 	def prepare_acc(self, u, d):
 		if u.next_mac >= len(u.macs):
@@ -153,28 +172,28 @@ class WhoToo():
 			p.temp2 = wti[1]
 			p.temp3 = wi[0] + wti[0]
 
-		thread_map(temp_func1, self.servers)
+		thread_map(temp_func1, self.servers, leave=False)
 
 		e0 = self.servers[1].last_acc[6]
 		e0t = self.servers[1].last_acc[7]
 
-		ver = self.sec_share.check_consistent(self.servers, e0)
+		ver = self.sec_share.check_consistent(e0)
 		if not ver: return False
 
 		def temp_func2(p):
 			p.temp1 = p.temp2
 		
-		thread_map(temp_func2, self.servers)
+		thread_map(temp_func2, self.servers, leave=False)
 
-		ver = self.sec_share.check_consistent(self.servers, e0t)
+		ver = self.sec_share.check_consistent(e0t)
 		if not ver: return False
 
 		def temp_func3(p):
 			p.temp1 = p.temp3
 
-		thread_map(temp_func3, self.servers)
+		thread_map(temp_func3, self.servers, leave=False)
 
-		prf = self.sec_share.diprf(self.servers)
+		prf = self.sec_share.diprf()
 		if prf in self.unique_accs: return False
 		self.unique_accs.add(prf)
 
@@ -191,7 +210,7 @@ class WhoToo():
 		def temp_func1(p):
 			p.temp1 = p.last_acc[2][0]
 
-		thread_map(temp_func1, self.servers)
+		thread_map(temp_func1, self.servers, leave=False)
 
 		self.wtset = self.mset.add(self.servers, self.wtset)
 		rhos = self.ibe.enc(self.servers)
@@ -200,7 +219,7 @@ class WhoToo():
 		def temp_func2(p):
 			p.temp1 = p.last_acc[2][0]
 
-		thread_map(temp_func2, self.servers)
+		thread_map(temp_func2, self.servers, leave=False)
 
 		quorum = self.mset.quorum(self.servers, self.wtset, self.q)
 		if quorum:
@@ -229,10 +248,10 @@ class WhoToo():
 
 		for (cR, rhos, cD) in self.accusations:
 			if self.ibe.dec(skid, rhos):
-				r = self.sec_share.dist_dec(self.servers, cR)
+				r = self.sec_share.dist_dec(cR)
 				u = self.id_map[r]
 				accusers.add(u)
-				dp = self.sec_share.dist_dec_str(self.servers, cD)
+				dp = self.sec_share.dist_dec_str(cD)
 				if self.hashfunc.hashToZr(dp) == s:
 					d = dp
 

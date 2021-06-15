@@ -171,7 +171,9 @@ class TestWhoToo(unittest.TestCase):
 			ser = servers[i-1]
 			ser.temp1 = w[i][0]
 
-		bs = sec_share.exp(servers, b)
+		sec_share.servers = servers
+
+		bs = sec_share.exp(b)
 
 		self.assertEqual(b ** s, bs)
 
@@ -213,11 +215,12 @@ class TestWhoToo(unittest.TestCase):
 			p.temp1 = wx[pid][0]
 			p.temp2 = wy[pid][0]
 
+		sec_share.servers = servers
 
-		servs = sec_share.mult(servers)
+		sec_share.mult()
 
 		z_shares = {}
-		for p in servs:
+		for p in sec_share.servers:
 			dk = group.init(ZR, p.id)
 			z_shares[dk] = p.temp3
 
@@ -234,7 +237,9 @@ class TestWhoToo(unittest.TestCase):
 			pid = p.id
 			p.temp1 = w[pid][1]
 
-		ver = sec_share.check_consistent(servers, e0)
+		sec_share.servers = servers
+
+		ver = sec_share.check_consistent(e0)
 		self.assertTrue(ver)
 
 
@@ -246,7 +251,9 @@ class TestWhoToo(unittest.TestCase):
 			pid = p.id
 			p.temp1 = w[pid][1]
 
-		ver = sec_share.check_consistent(servers, pkeg['g'] ** s)
+		sec_share.servers = servers
+
+		ver = sec_share.check_consistent(pkeg['g'] ** s)
 		self.assertFalse(ver)
 
 	def test_expRR(self):
@@ -257,8 +264,10 @@ class TestWhoToo(unittest.TestCase):
 			pid = p.id
 			p.temp1 = w[pid][0]
 
+		sec_share.servers = servers
+
 		e = eg.enc(pkeg, pkeg['g'] ** r)
-		eRR = sec_share.expRR(servers, e)
+		eRR = sec_share.expRR(e)
 		dec = eg.dec(skeg, eRR)
 
 		self.assertEqual(dec, pkeg['g'] ** (r * s))
@@ -280,11 +289,12 @@ class TestWhoToo(unittest.TestCase):
 
 
 	def test_sec_share_geng(self):
-		servs, h = sec_share.geng(servers)
+		sec_share.servers = servers
+		h = sec_share.geng()
 
 		x_shares = {}
 		
-		for p in servs:
+		for p in sec_share.servers:
 			dk = group.init(ZR, p.id)
 			x_shares[dk] = p.temp2
 
@@ -300,11 +310,13 @@ class TestWhoToo(unittest.TestCase):
 			pid = p.id
 			p.temp1 = w[pid][0]
 
-		servs = sec_share.invert(servers)
+		sec_share.servers = servers
+
+		sec_share.invert()
 
 		x_shares = {}
 		
-		for p in servs:
+		for p in sec_share.servers:
 			dk = group.init(ZR, p.id)
 			x_shares[dk] = p.temp3
 
@@ -313,11 +325,12 @@ class TestWhoToo(unittest.TestCase):
 		self.assertEqual(x, s ** -1)
 
 	def test_gen_zero(self):
-		servs = sec_share.gen_zero(servers)
+		sec_share.servers = servers
+		sec_share.gen_zero()
 
 		x_shares = {}
 		
-		for p in servs:
+		for p in sec_share.servers:
 			dk = group.init(ZR, p.id)
 			x_shares[dk] = p.temp2
 
@@ -326,11 +339,12 @@ class TestWhoToo(unittest.TestCase):
 		self.assertEqual(x, group.init(ZR, 0))
 
 	def test_gen_inv(self):
-		servs, res = sec_share.gen_inv(servers)
+		sec_share.servers = servers
+		res = sec_share.gen_inv()
 
 		x_shares = {}
 		
-		for p in servs:
+		for p in sec_share.servers:
 			dk = group.init(ZR, p.id)
 			x_shares[dk] = p.temp4
 
@@ -347,7 +361,9 @@ class TestWhoToo(unittest.TestCase):
 			pid = p.id
 			p.skeg_share = w[pid][0]
 
-		dec = sec_share.dist_dec(servers, c)
+		sec_share.servers = servers
+
+		dec = sec_share.dist_dec(c)
 
 		self.assertEqual(m, dec)	
 
@@ -361,7 +377,9 @@ class TestWhoToo(unittest.TestCase):
 			pid = p.id
 			p.skeg_share = w[pid][0]
 
-		dec = sec_share.dist_dec_str(servers, c)
+		sec_share.servers = servers
+
+		dec = sec_share.dist_dec_str(c)
 
 		self.assertEqual(m, dec.decode("utf-8"))	
 
@@ -435,7 +453,9 @@ class TestWhoToo(unittest.TestCase):
 		b1 = group.random(G1)
 		b2 = group.random(G1)
 
-		res = sec_share.multexp(servers, b1, b2)
+		sec_share.servers = servers
+
+		res = sec_share.multexp(b1, b2)
 		expected = (b1 ** a) * (b2 ** b)
 
 		self.assertEqual(expected, res)
@@ -448,8 +468,10 @@ class TestWhoToo(unittest.TestCase):
 			pid = p.id
 			p.temp1 = w[pid][0]
 
+		sec_share.servers = servers
+
 		expp = (skdiprf + x) ** -1
-		res = sec_share.diprf(servers)
+		res = sec_share.diprf()
 		expected = group.pair_prod(pkeg['g'], g2) ** expp
 
 		self.assertEqual(expected, res)
@@ -465,8 +487,10 @@ class TestWhoToo(unittest.TestCase):
 			pid = p.id
 			p.temp1 = w[pid][0]
 
+		sec_share.servers = servers
+
 		expp = (skdiprf + x) ** -1
-		user = sec_share.diprf(servers, recipient=user)
+		user = sec_share.diprf(recipient=user)
 
 		expected = group.pair_prod(pkeg['g'], g2) ** expp
 
@@ -665,13 +689,15 @@ class TestWhoToo(unittest.TestCase):
 	def test_msgrand(self):
 		m = pkeg['g'] ** 0
 		c = eg.enc(pkeg, m)
-		val = sec_share.msg_rand(servers, c)
+		sec_share.servers = servers
+		val = sec_share.msg_rand(c)
 		self.assertEqual(val, m)
 
 	def test_msgrand_not_zero(self):
 		m = group.random(ZR)
 		c = eg.enc(pkeg, m)
-		val = sec_share.msg_rand(servers, c)
+		sec_share.servers = servers
+		val = sec_share.msg_rand(c)
 		self.assertNotEqual(val, m)
 
 
